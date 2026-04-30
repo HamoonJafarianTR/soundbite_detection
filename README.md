@@ -2,7 +2,9 @@
 
 Automatically predicts soundbite segments in a news video using audio, transcript, shot, and visual features.
 
-Given an S3 URL to a video, the pipeline:
+> **Note:** This tool currently supports **English-language videos only**.
+
+Given an S3 URI to a video, the pipeline:
 1. Downloads the video from S3
 2. Transcribes it with AWS Transcribe
 3. Runs shot detection
