@@ -10,6 +10,8 @@ Given an S3 URI to a video, the pipeline:
 3. Runs shot detection
 4. Predicts soundbite timestamps and saves them to `predictions/`
 
+> **Windows users:** The commands in this guide use Mac/Linux syntax. See the [Windows Instructions](#windows-instructions) section at the bottom for the equivalent Windows commands.
+
 ---
 
 ## Prerequisites
@@ -22,7 +24,7 @@ docker --version
 
 You should see something like `Docker version 27.x.x`. If not, install Docker Desktop from https://www.docker.com/products/docker-desktop.
 
-Make sure Docker is running before continuing (open the Docker Desktop app).
+Make sure Docker Desktop is open and running before continuing.
 
 ### 2. Log in with cloud-tool
 
@@ -67,6 +69,8 @@ This will take a few minutes the first time (downloading base image and installi
 
 ## Running the pipeline
 
+Replace `s3://your-bucket/path/to/video.mp4` with the S3 URI of your video.
+
 ```bash
 docker run \
   -v ~/.aws:/root/.aws:ro \
@@ -75,8 +79,6 @@ docker run \
   soundbite-inference \
   --video s3://your-bucket/path/to/video.mp4
 ```
-
-**Replace** `s3://your-bucket/path/to/video.mp4` with the S3 URI of your video.
 
 - `-v ~/.aws:/root/.aws:ro` — passes your cloud-tool credentials into the container (read-only)
 - `-e AWS_PROFILE=<your-profile-name>` — tells boto3 which profile to use
@@ -143,3 +145,55 @@ All steps are skipped automatically if their output already exists, so re-runnin
 
 **Docker build fails on `apt-get`**
 → Make sure Docker Desktop is running and you have an internet connection.
+
+---
+
+## Windows Instructions
+
+Follow the same [Prerequisites](#prerequisites) and [Setup](#setup) steps above, with these differences:
+
+### Docker on Windows
+
+Docker Desktop on Windows requires **WSL 2** (Windows Subsystem for Linux). The Docker Desktop installer will guide you through enabling it.
+
+### Running the pipeline
+
+**PowerShell**
+
+```powershell
+docker run `
+  -v $env:USERPROFILE\.aws:/root/.aws:ro `
+  -e AWS_PROFILE=<your-profile-name> `
+  -v ${PWD}/predictions:/app/predictions `
+  soundbite-inference `
+  --video s3://your-bucket/path/to/video.mp4
+```
+
+**Command Prompt**
+
+```cmd
+docker run ^
+  -v %USERPROFILE%\.aws:/root/.aws:ro ^
+  -e AWS_PROFILE=<your-profile-name> ^
+  -v %cd%\predictions:/app/predictions ^
+  soundbite-inference ^
+  --video s3://your-bucket/path/to/video.mp4
+```
+
+### Example
+
+**PowerShell**
+
+```powershell
+docker run `
+  -v $env:USERPROFILE\.aws:/root/.aws:ro `
+  -e AWS_PROFILE=<your-profile-name> `
+  -v ${PWD}/predictions:/app/predictions `
+  soundbite-inference `
+  --video s3://a206709-archive/Hamoon/temp/IRAN-CRISIS-USA-CANADA.MP4
+```
+
+### Troubleshooting (Windows)
+
+**`docker run` path errors**
+→ Prefer PowerShell over Command Prompt. If paths still fail, try wrapping them in quotes.
