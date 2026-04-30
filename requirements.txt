@@ -1,0 +1,8 @@
+boto3==1.40.16
+joblib==1.4.2
+numpy==2.2.6
+opencv-python==4.13.0.92
+librosa==0.11.0
+pandas==2.3.2
+scikit-learn==1.6.1
+scenedetect==0.6.5.2
