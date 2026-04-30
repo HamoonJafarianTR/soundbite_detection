@@ -1,0 +1,31 @@
+{
+  "model_type": "RandomForest",
+  "feature_columns": [
+    "rms_mean",
+    "rms_std",
+    "spectral_centroid_mean",
+    "spectral_centroid_std",
+    "snr_estimate",
+    "word_count",
+    "speech_rate",
+    "confidence_mean",
+    "confidence_std",
+    "confidence_min",
+    "low_confidence_ratio",
+    "filler_word_ratio",
+    "speech_coverage",
+    "num_audio_segments_overlap",
+    "max_silence_gap",
+    "segment_duration",
+    "relative_position",
+    "face_area_ratio"
+  ],
+  "decision_threshold": 0.19999999999999996,
+  "iou_threshold": 0.3,
+  "seg_overlap_ratio_threshold": 0.5,
+  "gt_overlap_ratio_threshold": 0.5,
+  "overlap_ratio_threshold": 0.5,
+  "validation_strategy": "StratifiedGroupKFold(n_splits=5)",
+  "n_videos_trained": 107,
+  "n_segments_trained": 3085
+}

@@ -1,1 +1,10 @@
-*.mp4
+__pycache__/
+*.pyc
+predictions/
+frames/
+videos/
+transcripts/
+detected_shots/
+.DS_Store
+.env
+.venv/
