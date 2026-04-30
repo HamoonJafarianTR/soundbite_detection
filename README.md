@@ -31,10 +31,16 @@ cloud-tool login
 This sets up your AWS credentials automatically. To verify it worked:
 
 ```bash
-aws sts get-caller-identity --profile tr-reuters-devops-sandbox
+aws sts get-caller-identity --profile <your-profile-name>
 ```
 
 You should see your account ID and user ARN. If you see an error, your login did not work — try logging in again.
+
+> **Note:** Your profile must have permissions to:
+> - **Amazon S3** — read access to the bucket containing the video
+> - **AWS Transcribe** — permission to start and retrieve transcription jobs
+>
+> If you are unsure whether you have the right permissions, contact your AWS admin.
 
 ---
 
@@ -62,7 +68,7 @@ This will take a few minutes the first time (downloading base image and installi
 ```bash
 docker run \
   -v ~/.aws:/root/.aws:ro \
-  -e AWS_PROFILE=tr-reuters-devops-sandbox \
+  -e AWS_PROFILE=<your-profile-name> \
   -v $(pwd)/predictions:/app/predictions \
   soundbite-inference \
   --video s3://your-bucket/path/to/video.mp4
@@ -71,7 +77,7 @@ docker run \
 **Replace** `s3://your-bucket/path/to/video.mp4` with the S3 URI of your video.
 
 - `-v ~/.aws:/root/.aws:ro` — passes your cloud-tool credentials into the container (read-only)
-- `-e AWS_PROFILE=tr-reuters-devops-sandbox` — tells boto3 which profile to use
+- `-e AWS_PROFILE=<your-profile-name>` — tells boto3 which profile to use
 - `-v $(pwd)/predictions:/app/predictions` — saves the results to a `predictions/` folder on your machine
 
 ### Example
@@ -79,7 +85,7 @@ docker run \
 ```bash
 docker run \
   -v ~/.aws:/root/.aws:ro \
-  -e AWS_PROFILE=tr-reuters-devops-sandbox \
+  -e AWS_PROFILE=<your-profile-name> \
   -v $(pwd)/predictions:/app/predictions \
   soundbite-inference \
   --video s3://a206709-archive/Hamoon/temp/IRAN-CRISIS-USA-CANADA.MP4
@@ -123,7 +129,7 @@ All steps are skipped automatically if their output already exists, so re-runnin
 ## Troubleshooting
 
 **`Unable to locate credentials`**
-→ Your cloud-tool session has expired. Run `cloud-tool login` and verify with `aws sts get-caller-identity --profile tr-reuters-devops-sandbox`.
+→ Your cloud-tool session has expired. Run `cloud-tool login` and verify with `aws sts get-caller-identity --profile <your-profile-name>`.
 
 **`Access Denied`**
 → You are authenticated but don't have permission to the S3 bucket or AWS Transcribe. Contact your AWS admin.
