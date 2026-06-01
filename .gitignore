@@ -1,0 +1,42 @@
+# ── Input videos ──────────────────────────────────────────────────────────────
+videos/
+
+# ── Pipeline outputs ───────────────────────────────────────────────────────────
+transcripts/
+detected_shots/
+predictions.json
+
+# ── Python ────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual environments ───────────────────────────────────────────────────────
+.venv/
+venv/
+env/
+.env
+
+# ── Models (large binary files) ───────────────────────────────────────────────
+*.joblib
+*.pkl
+*.pt
+*.pth
+*.onnx
+whisper_models/
+
+# ── Jupyter ───────────────────────────────────────────────────────────────────
+.ipynb_checkpoints/
+*.ipynb
+
+# ── OS / editor ───────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
