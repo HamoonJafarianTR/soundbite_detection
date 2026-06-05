@@ -24,11 +24,11 @@ env/
 .env
 
 # ── Models (large binary files) ───────────────────────────────────────────────
-*.joblib
-*.pkl
-*.pt
-*.pth
-*.onnx
+# *.joblib
+# *.pkl
+# *.pt
+# *.pth
+# *.onnx
 whisper_models/
 
 # ── Jupyter ───────────────────────────────────────────────────────────────────
