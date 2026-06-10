@@ -105,3 +105,42 @@ def transcript_features(
         confidence_mean=confidence_mean,
         speech_coverage=speech_coverage,
     )
+
+
+def transcript_text_for_window(
+    transcript_path: str | Path,
+    start_sec: float,
+    end_sec: float,
+    border_threshold: float = 0.5,
+) -> str:
+    """Return transcript text using the same per-word overlap logic as features."""
+    shot_dur = end_sec - start_sec
+    if shot_dur <= 0:
+        return ""
+
+    with open(transcript_path, encoding="utf-8") as f:
+        data = json.load(f)
+
+    words_in_window: list[str] = []
+    for segment in data.get("segments", []):
+        seg_start = segment.get("start", 0.0)
+        seg_end = segment.get("end", 0.0)
+
+        if seg_end <= start_sec or seg_start >= end_sec:
+            continue
+
+        for word in segment.get("words", []):
+            w_start = word.get("start", seg_start)
+            w_end = word.get("end", seg_end)
+            w_text = str(word.get("word", "")).strip()
+
+            overlap = _overlap_fraction(w_start, w_end, start_sec, end_sec)
+
+            if overlap == 0.0:
+                continue
+            if overlap < border_threshold:
+                continue
+            if w_text:
+                words_in_window.append(w_text)
+
+    return " ".join(words_in_window).strip()

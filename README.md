@@ -26,6 +26,38 @@ pip install -r requirements.txt
 > - macOS: `brew install ffmpeg`
 > - Linux: `sudo apt install ffmpeg`
 
+## Environment notes (macOS)
+
+This project is currently most reliable with Python 3.12.
+
+Recommended setup:
+
+```bash
+python3.12 -m venv .venv
+source .venv/bin/activate
+python -m pip install -U pip setuptools wheel
+pip install -r requirements.txt
+```
+
+If you previously used Python 3.13 and saw AV build errors, recreate the virtual environment with Python 3.12.
+
+### Known warning: duplicate AVFoundation classes
+
+On macOS, you may see warnings like this during imports:
+
+```text
+objc: Class AVFFrameReceiver is implemented in both av and cv2 dylibs...
+```
+
+This happens because both av and opencv-python can load bundled FFmpeg libraries.
+If inference runs successfully, this warning is non-fatal and can be ignored.
+
+Optional: if your workflow does not require PyAV directly, uninstall av:
+
+```bash
+pip uninstall -y av
+```
+
 ## Usage
 
 1. Drop your `.mp4` file into the `videos/` folder.

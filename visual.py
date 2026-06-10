@@ -2,9 +2,10 @@ import cv2
 import numpy as np
 from pathlib import Path
 
-_CASCADE_DATA = Path(cv2.data.haarcascades)
-_PROTO = str(_CASCADE_DATA / "deploy.prototxt")
-_MODEL = str(_CASCADE_DATA / "res10_300x300_ssd_iter_140000.caffemodel")
+_ROOT = Path(__file__).parent
+_FACE_MODEL_DIR = _ROOT / "models" / "face_detector"
+_PROTO = str(_FACE_MODEL_DIR / "deploy.prototxt")
+_MODEL = str(_FACE_MODEL_DIR / "res10_300x300_ssd_iter_140000.caffemodel")
 _CONFIDENCE_THRESHOLD = 0.5
 
 _detector = None
@@ -13,6 +14,11 @@ _detector = None
 def _get_detector() -> cv2.dnn.Net:
     global _detector
     if _detector is None:
+        if not Path(_PROTO).exists() or not Path(_MODEL).exists():
+            raise FileNotFoundError(
+                "Face detector files not found. Expected: "
+                f"{_PROTO} and {_MODEL}"
+            )
         _detector = cv2.dnn.readNetFromCaffe(_PROTO, _MODEL)
     return _detector
 
