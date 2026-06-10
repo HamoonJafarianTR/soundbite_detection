@@ -52,6 +52,20 @@ def _get_fps(video_path: Path) -> float:
     return float(raw) if raw else 25.0
 
 
+def _get_video_duration(video_path: Path) -> float:
+    """Use ffprobe to read the duration of a video file in seconds."""
+    import subprocess
+    cmd = [
+        "ffprobe", "-v", "error",
+        "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1",
+        str(video_path),
+    ]
+    result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    raw = result.stdout.strip()
+    return float(raw) if raw else 0.0
+
+
 def _tc_to_sec(tc: str, fps: float) -> float:
     """Convert a 'HH:MM:SS:FF' timecode string to seconds."""
     h, m, s, ff = (int(p) for p in tc.split(":"))
@@ -59,7 +73,10 @@ def _tc_to_sec(tc: str, fps: float) -> float:
 
 
 def _load_shot_timecodes(video_path: Path, shots_dir: Path) -> list[float]:
-    """Return the list of shot boundary times in seconds for a video.
+    """Return the list of shot start times in seconds for a video.
+
+    Each value is the start of a shot. The last shot ends at the video duration;
+    use ``_shot_intervals`` to convert starts into (start_sec, end_sec) pairs.
 
     If the shots file already contains 'timecodes_seconds', those are used
     directly. Otherwise the 'timecode' strings ('HH:MM:SS:FF') are converted
@@ -80,6 +97,17 @@ def _load_shot_timecodes(video_path: Path, shots_dir: Path) -> list[float]:
         fps = _get_fps(video_path)
         return [_tc_to_sec(tc, fps) for tc in entry["timecode"]]
     return []
+
+
+def _shot_intervals(video_path: Path, shot_starts: list[float]) -> list[tuple[float, float]]:
+    """Convert shot start times into (start_sec, end_sec) intervals."""
+    if not shot_starts:
+        return []
+    duration = _get_video_duration(video_path)
+    return [
+        (start, shot_starts[i + 1] if i + 1 < len(shot_starts) else duration)
+        for i, start in enumerate(shot_starts)
+    ]
 
 
 def _extract_shot(
@@ -167,19 +195,17 @@ def extract_all(data_dir: Path, output_path: Path) -> list[dict]:
             print(f"[SKIP] no GT entry — {video_path.name}")
             continue
 
-        timecodes = _load_shot_timecodes(video_path, shots_dir)
-        if len(timecodes) < 2:
-            print(f"[SKIP] not enough shot boundaries — {video_path.name}")
+        shot_starts = _load_shot_timecodes(video_path, shots_dir)
+        if not shot_starts:
+            print(f"[SKIP] no shot start times — {video_path.name}")
             continue
 
         transcript_path = _transcript_path(video_path, transcripts_dir)
-        n_shots = len(timecodes) - 1
+        intervals = _shot_intervals(video_path, shot_starts)
 
-        print(f"[INFO] {video_path.stem}  ({n_shots} shots)")
+        print(f"[INFO] {video_path.stem}  ({len(intervals)} shots)")
 
-        for i in range(n_shots):
-            start_sec = timecodes[i]
-            end_sec   = timecodes[i + 1]
+        for i, (start_sec, end_sec) in enumerate(intervals):
             row = _extract_shot(video_path, transcript_path, i, start_sec, end_sec, gt)
             all_rows.append(row)
 

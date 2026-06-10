@@ -36,6 +36,7 @@ from extractFeatures import (
     _transcript_path,
     _detected_shots_path,
     _load_shot_timecodes,
+    _shot_intervals,
 )
 from visual import face_area_ratio
 from audio import audio_features
@@ -207,20 +208,20 @@ def run(video_path: Path, model_path: Path, whisper_model_path: Path, output_jso
     # Shot detection
     detect_shots(video_path)
 
-    # Load shot timecodes
-    timecodes = _load_shot_timecodes(video_path, SHOTS_DIR)
-    if len(timecodes) < 2:
-        print("  [SKIP] not enough shot boundaries")
+    # Load shot start times (each timecode is a shot start; last shot ends at video duration)
+    shot_starts = _load_shot_timecodes(video_path, SHOTS_DIR)
+    if not shot_starts:
+        print("  [SKIP] no shot start times found")
         return
 
-    n_shots = len(timecodes) - 1
-    print(f"  [INFO] {n_shots} shots detected")
+    intervals = _shot_intervals(video_path, shot_starts)
+    print(f"  [INFO] {len(intervals)} shots detected")
 
     rows: list[dict] = []
-    for i in range(n_shots):
+    for i, (start_sec, end_sec) in enumerate(intervals):
         row = extract_shot_features(
             video_path, transcript_path,
-            i, timecodes[i], timecodes[i + 1],
+            i, start_sec, end_sec,
         )
         rows.append(row)
 
@@ -234,7 +235,7 @@ def run(video_path: Path, model_path: Path, whisper_model_path: Path, output_jso
 if __name__ == "__main__":
     # ── Configure these paths before running ──────────────────────────────────
 
-    VIDEO_PATH          = VIDEOS_DIR / "366903122025RU1.mp4"
+    VIDEO_PATH          = VIDEOS_DIR / "380308012026RU1.mp4"
     MODEL_PATH          = DEFAULT_MODEL
     WHISPER_MODEL_PATH  = DEFAULT_WHISPER_MODEL
     OUTPUT_JSON_PATH    = OUTPUT_JSON
