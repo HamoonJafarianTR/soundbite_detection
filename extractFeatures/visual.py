@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from pathlib import Path
 
-_MODEL_DIR = Path(__file__).parent.parent / "models" / "face_detector"
+_MODEL_DIR = Path(__file__).parent / "models" / "face_detector"
 _YUNET_MODEL = str(_MODEL_DIR / "face_detection_yunet_2023mar.onnx")
 
 # YuNet detection thresholds.
@@ -10,18 +10,8 @@ _CONFIDENCE_THRESHOLD = 0.6   # min detection score to accept a face
 _NMS_THRESHOLD = 0.3
 _TOP_K = 50
 
-# Minimum face area (as a fraction of the frame) for a detection to count as a
-# real on-screen face. Tiny spurious detections (e.g. a face-like pattern in
-# b-roll occupying <1% of the frame) are below this and are ignored, so they
-# can't inflate face_presence. ~0.01 sits well above typical phantom
-# detections but below genuine small/field-shot faces; tune as needed.
-_MIN_FACE_AREA = 0.01
-
-# Temporal sampling: one frame per second of shot, bounded so that very short
-# shots still get a few samples and very long shots stay cheap.
+# Temporal sampling: exactly one frame per second of shot duration (1 Hz).
 _SAMPLE_FPS = 1.0
-_MIN_SAMPLES = 3
-_MAX_SAMPLES = 10
 
 _detector = None
 _detector_size: tuple[int, int] | None = None
@@ -56,9 +46,8 @@ def _get_detector(width: int, height: int) -> "cv2.FaceDetectorYN":
 def _largest_face_ratio(frame: np.ndarray) -> float:
     """Return largest face bounding-box area / frame area for one frame.
 
-    Detection runs at the frame's native resolution (no down-squash to
-    300x300), so small / off-axis faces survive far better than with the old
-    SSD detector.
+    Uses YuNet's score threshold only; no minimum face-size cutoff. Detection
+    runs at the video's native frame resolution.
     """
     h, w = frame.shape[:2]
     frame_area = h * w
@@ -71,13 +60,13 @@ def _largest_face_ratio(frame: np.ndarray) -> float:
         return 0.0
 
     # Each face row is [x, y, w, h, <5 landmark x/y pairs>, score].
-    max_area = 0.0
+    max_ratio = 0.0
     for f in faces:
         fw = max(0.0, float(f[2]))
         fh = max(0.0, float(f[3]))
-        max_area = max(max_area, fw * fh)
+        max_ratio = max(max_ratio, (fw * fh) / frame_area)
 
-    return max_area / frame_area
+    return max_ratio
 
 
 def _grab_frame(cap: cv2.VideoCapture, timestamp_sec: float) -> np.ndarray | None:
@@ -88,11 +77,14 @@ def _grab_frame(cap: cv2.VideoCapture, timestamp_sec: float) -> np.ndarray | Non
 
 
 def _sample_times(start_sec: float, end_sec: float) -> list[float]:
-    """Evenly spaced sample timestamps inside a shot (~1 fps, bounded)."""
+    """Return one sample timestamp per second of shot duration (1 Hz, no cap).
+
+    An 82 s shot yields 82 samples at start+0.5 s, start+1.5 s, …, start+81.5 s.
+    Sub-second shots still get a single sample at the midpoint.
+    """
     duration = end_sec - start_sec
-    n = int(round(duration * _SAMPLE_FPS))
-    n = max(_MIN_SAMPLES, min(_MAX_SAMPLES, n))
-    return [start_sec + duration * (i + 1) / (n + 1) for i in range(n)]
+    n = max(1, int(duration * _SAMPLE_FPS))
+    return [start_sec + i + 0.5 for i in range(n)]
 
 
 def _collect_ratios(
@@ -102,7 +94,7 @@ def _collect_ratios(
 ) -> list[float]:
     """Sample frames across a shot and return the largest-face area ratio per frame.
 
-    One frame per second of shot (min 3, max 10), detected with YuNet at native
+    One frame per second of shot (no upper cap), detected with YuNet at native
     resolution. Each value is (largest face area / frame area); 0.0 for frames
     with no detected face. Frames that fail to decode are skipped.
     """
@@ -126,24 +118,66 @@ def _collect_ratios(
     return ratios
 
 
+def face_features(
+    video_path: str | Path,
+    start_sec: float,
+    end_sec: float,
+) -> tuple[float, float, float, float]:
+    """
+    Compute visual face features for a single shot.
+
+    Samples one frame per second, runs YuNet on each, and takes the largest
+    detected face per frame. Returns:
+
+        face_presence    – mean of per-frame largest-face area ratios
+        max_face_ratio   – max of per-frame largest-face area ratios
+        face_consistency – fraction of sampled frames in which at least one
+                           face was detected (ratio > 0). This distinguishes
+                           a consistently visible speaker (soundbite) from an
+                           occasional face in B-roll or reporter voiceover.
+        face_ratio_std   – std dev of per-frame face area ratios. A fixed
+                           tripod shot of a reporter standup yields low std
+                           (face stays constant size); interview subjects or
+                           slight camera movement yield higher std. Helps
+                           separate reporter standups from genuine soundbites
+                           even when face_consistency is 1.0 for both.
+
+    All values are non-negative floats.
+    """
+    ratios = _collect_ratios(video_path, start_sec, end_sec)
+    if not ratios:
+        return 0.0, 0.0, 0.0, 0.0
+    arr = np.array(ratios, dtype=np.float64)
+    n = len(ratios)
+    face_presence    = float(arr.mean())
+    max_face_ratio   = float(arr.max())
+    face_consistency = float((arr > 0).sum() / n)
+    face_ratio_std   = float(arr.std())
+    return face_presence, max_face_ratio, face_consistency, face_ratio_std
+
+
 def face_presence(
     video_path: str | Path,
     start_sec: float,
     end_sec: float,
 ) -> float:
-    """
-    Compute the face_presence feature for a single shot.
+    """Return mean largest-face area ratio (see face_features)."""
+    return face_features(video_path, start_sec, end_sec)[0]
 
-    face_presence is the fraction of sampled frames that contain an accepted
-    face, i.e. a detection larger than _MIN_FACE_AREA of the frame. The size
-    gate means a microscopic phantom detection does not count, so this answers
-    "how consistently is a real person on screen during the shot?".
 
-    Returns:
-        float in [0, 1]; 0.0 when no sufficiently large face is found.
-    """
-    ratios = _collect_ratios(video_path, start_sec, end_sec)
-    if not ratios:
-        return 0.0
-    accepted = sum(1 for r in ratios if r > _MIN_FACE_AREA)
-    return accepted / len(ratios)
+def face_consistency(
+    video_path: str | Path,
+    start_sec: float,
+    end_sec: float,
+) -> float:
+    """Return fraction of sampled frames with a detected face (see face_features)."""
+    return face_features(video_path, start_sec, end_sec)[2]
+
+
+def face_ratio_std(
+    video_path: str | Path,
+    start_sec: float,
+    end_sec: float,
+) -> float:
+    """Return std dev of per-frame face area ratios (see face_features)."""
+    return face_features(video_path, start_sec, end_sec)[3]

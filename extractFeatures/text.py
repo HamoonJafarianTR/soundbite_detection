@@ -8,6 +8,7 @@ class TranscriptFeatures:
     speech_rate: float
     confidence_mean: float
     speech_coverage: float
+    n_words: int
 
 
 def _overlap_fraction(
@@ -57,6 +58,7 @@ def transcript_features(
             speech_rate     – words per second (0 if shot duration <= 0)
             confidence_mean – mean word probability (0 if no words found)
             speech_coverage – overlapping word duration / shot duration
+            n_words         – absolute word count in the shot window
     """
     shot_dur = end_sec - start_sec
     if shot_dur <= 0:
@@ -101,4 +103,5 @@ def transcript_features(
         speech_rate=speech_rate,
         confidence_mean=confidence_mean,
         speech_coverage=speech_coverage,
+        n_words=word_count,
     )
