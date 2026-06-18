@@ -433,7 +433,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--video",
         type=Path,
-        default=VIDEOS_DIR / "tag_reuters.com,2026_binary_LOV019113052026RP1-STREAM_700_16X9_MP4.mp4",
+        default=VIDEOS_DIR / "367603122025RU1.mp4",
         help="Input video path (relative paths are resolved from repo root).",
     )
     parser.add_argument(
