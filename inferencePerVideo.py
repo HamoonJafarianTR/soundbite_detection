@@ -1,19 +1,13 @@
 """
 End-to-end inference pipeline for a single video.
 
-  1. Transcribes audio with Whisper  → transcripts/
-  2. Detects shots                   → detected_shots/
-  3. Extracts features per shot      (no GT label)
-  4. Runs the trained model
-  5. Writes predictions.json
+  1. Extracts features per shot      (no GT label)
+  2. Runs the trained model
+  3. Writes predictions.json
 
-Run with defaults:
+Run with explicit paths:
 
-    python inferencePerVideo.py
-
-or pass explicit paths:
-
-    python inferencePerVideo.py --video videos/my_video.mp4 --model models/model_xgboost_v10.joblib
+    python inferencePerVideo.py --video videos/my_video.mp4 --transcript transcripts/my_video_transcript.json --shots detected_shots/my_video_shots.json --model models/model_xgboost_v10.joblib --output predictions.json
 """
 
 import argparse
@@ -26,27 +20,16 @@ from pathlib import Path
 
 import joblib
 import numpy as np
-from faster_whisper import WhisperModel
 
 # ── project root ───────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from prepareData.whisper_transcibe import transcribe_video_to_json
-from prepareData.shotDetection import weighted_adaptive_threshold_shot_detection
 from extractFeatures import visual as visual_module
 from extractFeatures.visual import face_features
 from extractFeatures.audio import audio_features
 from extractFeatures.text import transcript_features
-
-VIDEOS_DIR = ROOT / "videos"
-TRANSCRIPTS_DIR = ROOT / "transcripts"
-SHOTS_DIR = ROOT / "detected_shots"
-OUTPUT_JSON = ROOT / "predictions.json"
-
-DEFAULT_MODEL = ROOT / "models" / "model_xgboost_v10.joblib"
-DEFAULT_WHISPER_MODEL = "medium"
 
 # Backward-compatible fallback for face detector model location.
 _DEFAULT_YUNET_PATH = ROOT / "models" / "face_detector" / "face_detection_yunet_2023mar.onnx"
@@ -87,21 +70,6 @@ def _resolve_repo_path(path: Path) -> Path:
     return path if path.is_absolute() else ROOT / path
 
 
-def _resolve_whisper_model(spec: str) -> str:
-    """Return local model path when it exists, otherwise keep model name."""
-    candidate = Path(spec).expanduser()
-    if candidate.is_absolute() and candidate.exists():
-        return str(candidate)
-    repo_candidate = ROOT / candidate
-    if repo_candidate.exists():
-        return str(repo_candidate)
-    return spec
-
-
-def _detected_shots_path(video_path: Path, shots_dir: Path) -> Path:
-    return shots_dir / (video_path.stem + "_weighted_adaptive_prediction.json")
-
-
 def _get_fps(video_path: Path) -> float:
     cmd = [
         "ffprobe", "-v", "error",
@@ -126,16 +94,23 @@ def _tc_to_sec(tc: str, fps: float) -> float:
     return round(h * 3600 + m * 60 + s + ff / fps, 6)
 
 
-def _load_shot_timecodes(video_path: Path, shots_dir: Path) -> list[float]:
-    shots_file = _detected_shots_path(video_path, shots_dir)
+def _load_shot_timecodes(video_path: Path, shots_file: Path) -> list[float]:
     if not shots_file.exists():
         return []
     with open(shots_file, encoding="utf-8") as f:
         data = json.load(f)
     video_key = video_path.name
     if video_key not in data:
-        return []
-    entry = data[video_key]
+        # Check if the structure does not have the video_key at the root
+        if "timecodes_seconds" in data:
+            entry = data
+        elif "timecode" in data:
+            entry = data
+        else:
+            return []
+    else:
+        entry = data[video_key]
+        
     if "timecodes_seconds" in entry:
         return entry["timecodes_seconds"]
     if "timecode" in entry:
@@ -224,29 +199,7 @@ def _extract_shot_transcript_text(
     return " ".join(segment_texts).strip()
 
 
-# ── Step 1: Transcription ──────────────────────────────────────────────────────
-
-def transcribe_video(video_path: Path, whisper_model: WhisperModel) -> Path:
-    out = TRANSCRIPTS_DIR / (video_path.stem + "_transcript.json")
-    return transcribe_video_to_json(video_path, whisper_model, out)
-
-
-# ── Step 2: Shot detection ─────────────────────────────────────────────────────
-
-def detect_shots(video_path: Path) -> Path:
-    out = SHOTS_DIR / (video_path.stem + "_weighted_adaptive_prediction.json")
-    weighted_adaptive_threshold_shot_detection(
-        video_path=str(video_path),
-        output_dir=str(SHOTS_DIR),
-        adaptive_threshold=2.5,
-        min_scene_len=30,
-        window_width=4,
-        min_content_val=20,
-    )
-    return out
-
-
-# ── Step 3: Feature extraction (no GT label) ──────────────────────────────────
+# ── Step 1: Feature extraction (no GT label) ──────────────────────────────────
 
 def extract_shot_features(
     video_path: Path,
@@ -309,7 +262,7 @@ def extract_shot_features(
     return feat
 
 
-# ── Step 4 & 5: Predict and write JSON ────────────────────────────────────────
+# ── Step 2 & 3: Predict and write JSON ────────────────────────────────────────
 
 def predict_and_write(rows: list[dict], model, output_json: Path) -> None:
     # Replace None with 0 so the model pipeline doesn't fail on missing features
@@ -361,18 +314,18 @@ def _add_rms_std_relative(rows: list[dict]) -> None:
 
 def run(
     video_path: Path,
+    transcript_path: Path,
+    shots_path: Path,
     model_path: Path,
-    whisper_model_spec: str,
     output_json: Path,
-    *,
-    device: str = "cpu",
-    compute_type: str = "int8",
 ) -> None:
-    TRANSCRIPTS_DIR.mkdir(parents=True, exist_ok=True)
-    SHOTS_DIR.mkdir(parents=True, exist_ok=True)
 
     if not video_path.exists():
         raise FileNotFoundError(f"Video not found: {video_path}")
+    if not transcript_path.exists():
+        raise FileNotFoundError(f"Transcript not found: {transcript_path}")
+    if not shots_path.exists():
+        raise FileNotFoundError(f"Shots JSON not found: {shots_path}")
 
     # Load ML model
     if not model_path.exists():
@@ -380,20 +333,9 @@ def run(
     model = joblib.load(model_path)
     print(f"Loaded model      : {model_path.name}")
 
-    # Load Whisper model (local path or model name, e.g. "medium")
-    whisper_model_ref = _resolve_whisper_model(whisper_model_spec)
-    whisper_model = WhisperModel(whisper_model_ref, device=device, compute_type=compute_type)
-    print(f"Loaded Whisper    : {whisper_model_ref}\n")
-
     print(f"\n── {video_path.name} ──")
 
-    # Transcribe
-    transcript_path = transcribe_video(video_path, whisper_model)
-
-    # Shot detection
-    detect_shots(video_path)
-
-    shot_starts = _load_shot_timecodes(video_path, SHOTS_DIR)
+    shot_starts = _load_shot_timecodes(video_path, shots_path)
     if not shot_starts:
         print("  [SKIP] no shot starts found")
         return
@@ -432,56 +374,72 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Run soundbite inference on one video.")
     parser.add_argument(
         "--video",
-        type=Path,
-        default=VIDEOS_DIR / "367603122025RU1.mp4",
+        type=str,
         help="Input video path (relative paths are resolved from repo root).",
     )
     parser.add_argument(
+        "--transcript",
+        type=str,
+        help="Input transcript JSON path.",
+    )
+    parser.add_argument(
+        "--shots",
+        type=str,
+        help="Input detected shots JSON path.",
+    )
+    parser.add_argument(
         "--model",
-        type=Path,
-        default=DEFAULT_MODEL,
+        type=str,
         help="Path to trained XGBoost model (.joblib).",
     )
     parser.add_argument(
-        "--whisper-model",
-        type=str,
-        default=DEFAULT_WHISPER_MODEL,
-        help='Whisper model path or model name (e.g. "medium").',
-    )
-    parser.add_argument(
         "--output",
-        type=Path,
-        default=OUTPUT_JSON,
+        type=str,
         help="Output predictions JSON path.",
     )
-    parser.add_argument(
-        "--device",
-        type=str,
-        default="cpu",
-        help='Whisper device, e.g. "cpu" or "cuda".',
-    )
-    parser.add_argument(
-        "--compute-type",
-        type=str,
-        default="int8",
-        help='Whisper compute type, e.g. "int8", "float16", or "float32".',
-    )
+    
     args = parser.parse_args()
 
-    video_path = _resolve_repo_path(args.video)
-    model_path = _resolve_repo_path(args.model)
-    output_path = _resolve_repo_path(args.output)
+    video_val = args.video
+    if not video_val:
+        video_val = input("Please provide the path to the video file: ").strip()
+    
+    transcript_val = args.transcript
+    if not transcript_val:
+        transcript_val = input("Please provide the path to the transcript JSON: ").strip()
+        
+    shots_val = args.shots
+    if not shots_val:
+        shots_val = input("Please provide the path to the detected shots JSON: ").strip()
+
+    model_val = args.model
+    if not model_val:
+        model_val = input("Please provide the path to the trained XGBoost model (.joblib): ").strip()
+        
+    output_val = args.output
+    if not output_val:
+        output_val = input("Please provide the path to save the output predictions JSON: ").strip()
+
+    if not video_val or not transcript_val or not shots_val or not model_val or not output_val:
+        print("Error: video, transcript, shots, model, and output paths are all required.")
+        sys.exit(1)
+
+    video_path = _resolve_repo_path(Path(video_val))
+    transcript_path = _resolve_repo_path(Path(transcript_val))
+    shots_path = _resolve_repo_path(Path(shots_val))
+    model_path = _resolve_repo_path(Path(model_val))
+    output_path = _resolve_repo_path(Path(output_val))
 
     print(f"Video            : {video_path}")
+    print(f"Transcript       : {transcript_path}")
+    print(f"Shots            : {shots_path}")
     print(f"Model            : {model_path}")
-    print(f"Whisper model    : {args.whisper_model}")
     print(f"Output           : {output_path}\n")
 
     run(
         video_path=video_path,
+        transcript_path=transcript_path,
+        shots_path=shots_path,
         model_path=model_path,
-        whisper_model_spec=args.whisper_model,
         output_json=output_path,
-        device=args.device,
-        compute_type=args.compute_type,
     )
