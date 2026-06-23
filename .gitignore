@@ -2,9 +2,9 @@
 videos/
 
 # ── Pipeline outputs ───────────────────────────────────────────────────────────
-transcripts/
-detected_shots/
-predictions.json
+# transcripts/
+# detected_shots/
+# predictions.json
 
 # ── Python ────────────────────────────────────────────────────────────────────
 __pycache__/
