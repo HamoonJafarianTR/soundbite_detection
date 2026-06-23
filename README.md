@@ -78,3 +78,15 @@ The script generates a final JSON file (`predictions.json` by default). This fil
 - The extracted features (speech rate, face presence, rms standard deviation, etc.).
 - `predicted_soundbite`: `1` if it is a soundbite, `0` if it is not.
 - `soundbite_probability`: The model's confidence score that the shot is a soundbite.
+
+After each run, the script also prints processing time to the terminal (not saved to the output JSON). The timer covers feature extraction and prediction for the video; model loading is excluded.
+
+Example:
+
+```
+  [TIME] 45.23s processing / 120.50s video = 0.375s per video second
+```
+
+- **processing**: Total seconds spent on that video.
+- **video**: Video duration in seconds (from ffprobe).
+- **s per video second**: Processing time divided by video length. Lower values mean faster throughput (e.g. `0.375` is roughly 2.7× realtime).

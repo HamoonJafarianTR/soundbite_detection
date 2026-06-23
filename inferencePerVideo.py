@@ -14,6 +14,7 @@ import argparse
 import json
 import subprocess
 import sys
+import time
 import traceback
 from collections import defaultdict
 from pathlib import Path
@@ -352,6 +353,8 @@ def run(
 
     print(f"  [INFO] {len(shot_ranges)} shots detected")
 
+    process_start = time.perf_counter()
+
     n_shots = len(shot_ranges)
     rows: list[dict] = []
     for i, (start_sec, end_sec) in enumerate(shot_ranges):
@@ -368,6 +371,11 @@ def run(
 
     _add_rms_std_relative(rows)
     predict_and_write(rows, model, output_json)
+
+    elapsed = time.perf_counter() - process_start
+    per_sec = elapsed / video_duration if video_duration > 0 else 0.0
+    print(f"  [TIME] {elapsed:.2f}s processing / {video_duration:.2f}s video "
+          f"= {per_sec:.3f}s per video second")
 
 
 if __name__ == "__main__":
