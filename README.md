@@ -26,17 +26,27 @@ To run the pipeline, you need five primary inputs.
 The source video file (e.g., `.mp4`) that you want to analyze.
 
 ### 2. Transcript JSON (`--transcript`)
-A JSON file containing the transcription of the video (Whisper format). The file must contain a `segments` array. Each segment and the words inside it require the following fields for accurate feature extraction:
+A JSON file containing the transcription of the video (Whisper format). The file must contain a `segments` array:
 
 - `segments`: List of segment objects.
   - `start`: Start time of the segment in seconds.
   - `end`: End time of the segment in seconds.
-  - `text`: (Fallback) Full text of the segment, used if `words` are missing.
-  - `words`: List of word-level objects (crucial for accurate metrics).
+  - `text`: Full text of the segment. Used only as a fallback for `transcript_text` in the output (see below). **Not** used for model features.
+  - `words`: List of word-level objects (**required for accurate text features**).
     - `start`: Word start time in seconds.
     - `end`: Word end time in seconds.
     - `probability`: Word-level confidence score (used to calculate `confidence_mean`).
     - `word`: The actual text string of the word.
+
+**If `words` are missing**  
+The pipeline behaves differently for features vs. output text:
+
+| | With word-level `words` | Without word-level `words` |
+|---|---|---|
+| Model features (`speech_rate`, `confidence_mean`, `speech_coverage`) | Computed from overlapping words | All set to **0** (no fallback from segment `text`) |
+| Output field `transcript_text` | Built from overlapping `word` strings | Falls back to segment `text` for any segment that overlaps the shot |
+
+So segment-level `text` keeps the predictions JSON readable when Whisper only returns segments, but the model still receives zero text features for those shots. For reliable soundbite detection, provide word-level timestamps in the transcript.
 
 **Word Overlap Handling (Shot Borders)**  
 Because shots (cuts) and spoken words do not always perfectly align, the script calculates an **overlap fraction** for words that fall on the boundary of a shot:
