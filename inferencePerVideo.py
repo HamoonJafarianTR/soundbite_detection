@@ -8,6 +8,14 @@ End-to-end inference pipeline for a single video.
 Run with explicit paths:
 
     python inferencePerVideo.py --video videos/my_video.mp4 --transcript transcripts/my_video_transcript.json --shots detected_shots/my_video_shots.json --model models/model_xgboost_v10.joblib --output predictions.json
+
+Example:
+python inferencePerVideo.py \
+  --video videos/367603122025RU1.mp4 \
+  --transcript transcripts/367603122025RU1_transcript.json \
+  --shots detected_shots/367603122025RU1_weighted_adaptive_prediction.json \
+  --model models/model_xgboost_v10.joblib \
+  --output predictions.json
 """
 
 import argparse
@@ -216,7 +224,6 @@ def extract_shot_features(
         "end_sec":             end_sec,
         "transcript_text":     "",
         "duration":            end_sec - start_sec,
-        "shot_position_ratio": None,   # filled after all shots for the video are collected
         "face_presence":       None,
         "max_face_ratio":      None,
         "face_consistency":    None,
@@ -239,7 +246,7 @@ def extract_shot_features(
         print(f"    [WARN] visual failed  shot {shot_idx}: {traceback.format_exc(limit=1).strip()}")
 
     try:
-        rms_std, zcr_mean, _ = audio_features(video_path, start_sec, end_sec)
+        rms_std, zcr_mean = audio_features(video_path, start_sec, end_sec)
         feat["rms_std"]  = rms_std
         feat["zcr_mean"] = zcr_mean
     except Exception:
@@ -251,7 +258,6 @@ def extract_shot_features(
             feat["speech_rate"]     = tf.speech_rate
             feat["confidence_mean"] = tf.confidence_mean
             feat["speech_coverage"] = tf.speech_coverage
-            feat["n_words"]         = tf.n_words
             feat["transcript_text"] = _extract_shot_transcript_text(
                 transcript_path, start_sec, end_sec
             )
@@ -355,14 +361,12 @@ def run(
 
     process_start = time.perf_counter()
 
-    n_shots = len(shot_ranges)
     rows: list[dict] = []
     for i, (start_sec, end_sec) in enumerate(shot_ranges):
         row = extract_shot_features(
             video_path, transcript_path,
             i, start_sec, end_sec,
         )
-        row["shot_position_ratio"] = round(i / max(n_shots - 1, 1), 6)
         rows.append(row)
 
     if not rows:

@@ -42,7 +42,7 @@ def audio_features(
     video_path: str | Path,
     start_sec: float,
     end_sec: float,
-) -> tuple[float, float, float]:
+) -> tuple[float, float]:
     """
     Compute audio energy and speech-discriminative features for a single shot.
 
@@ -56,11 +56,7 @@ def audio_features(
                     [0, 1] by dividing by frame length. Speech produces
                     characteristic mid-range ZCR (~0.05–0.15) whereas
                     background noise and music have distinctly different
-                    profiles, making this more discriminative than rms_mean
-                    for separating voiceover from genuine soundbite speech.
-        rms_mean  – mean frame-wise RMS energy; retained for backwards
-                    compatibility but has low feature importance and is
-                    superseded by zcr_mean for speech discrimination.
+                    profiles.
 
     Args:
         video_path: Path to the video file.
@@ -68,17 +64,17 @@ def audio_features(
         end_sec:    Shot end time in seconds.
 
     Returns:
-        (rms_std, zcr_mean, rms_mean) — all floats. Returns (0.0, 0.0, 0.0)
+        (rms_std, zcr_mean) — both floats. Returns (0.0, 0.0)
         for silent or unreadable segments.
     """
     duration = end_sec - start_sec
     if duration <= 0:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0
 
     y = _load_audio_segment(video_path, start_sec, duration)
 
     if len(y) == 0:
-        return 0.0, 0.0, 0.0
+        return 0.0, 0.0
 
     frames = np.lib.stride_tricks.sliding_window_view(y, _FRAME_LENGTH)[::_HOP_LENGTH]
 
@@ -90,4 +86,4 @@ def audio_features(
     signs[signs == 0] = 1  # treat zero samples as positive to avoid double-counting
     zcr = np.sum(np.abs(np.diff(signs, axis=1)), axis=1) / (2 * _FRAME_LENGTH)
 
-    return float(np.std(rms)), float(np.mean(zcr)), float(np.mean(rms))
+    return float(np.std(rms)), float(np.mean(zcr))

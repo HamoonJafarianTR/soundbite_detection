@@ -154,30 +154,3 @@ def face_features(
     face_consistency = float((arr > 0).sum() / n)
     face_ratio_std   = float(arr.std())
     return face_presence, max_face_ratio, face_consistency, face_ratio_std
-
-
-def face_presence(
-    video_path: str | Path,
-    start_sec: float,
-    end_sec: float,
-) -> float:
-    """Return mean largest-face area ratio (see face_features)."""
-    return face_features(video_path, start_sec, end_sec)[0]
-
-
-def face_consistency(
-    video_path: str | Path,
-    start_sec: float,
-    end_sec: float,
-) -> float:
-    """Return fraction of sampled frames with a detected face (see face_features)."""
-    return face_features(video_path, start_sec, end_sec)[2]
-
-
-def face_ratio_std(
-    video_path: str | Path,
-    start_sec: float,
-    end_sec: float,
-) -> float:
-    """Return std dev of per-frame face area ratios (see face_features)."""
-    return face_features(video_path, start_sec, end_sec)[3]
