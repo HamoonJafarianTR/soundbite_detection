@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 from pathlib import Path
 
-_MODEL_DIR = Path(__file__).parent / "models" / "face_detector"
+_MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / "face_detector"
 _YUNET_MODEL = str(_MODEL_DIR / "face_detection_yunet_2023mar.onnx")
 
 # YuNet detection thresholds.

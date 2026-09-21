@@ -35,15 +35,9 @@ ROOT = Path(__file__).resolve().parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from extractFeatures import visual as visual_module
 from extractFeatures.visual import face_features
 from extractFeatures.audio import audio_features
 from extractFeatures.text import transcript_features
-
-# Backward-compatible fallback for face detector model location.
-_DEFAULT_YUNET_PATH = ROOT / "models" / "face_detector" / "face_detection_yunet_2023mar.onnx"
-if not Path(visual_module._YUNET_MODEL).is_file() and _DEFAULT_YUNET_PATH.is_file():
-    visual_module._YUNET_MODEL = str(_DEFAULT_YUNET_PATH)
 
 # Model input features (must match the trained model).
 FEATURE_COLS = [
